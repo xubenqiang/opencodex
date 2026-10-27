@@ -73,7 +73,7 @@
 +  if (arch === "ia32" || arch === "x32") return "x32";
 +  return arch ? `other:${arch}` : "unknown";
 +}
- 
+
 -// ── Claude Code CLI (matches Claude Code 2.1.63 / @anthropic-ai/sdk 0.74.0) ──
 +// ── Claude Code CLI (matches Claude Code 2.1.280 / @anthropic-ai/sdk 0.112.1) ──
  export const CLAUDE_CODE_HEADERS: Record<string, string> = {
@@ -92,7 +92,7 @@
 +  "X-Stainless-Package-Version": CLAUDE_CLI_SDK_PACKAGE_VERSION,
 +  "X-Stainless-Runtime-Version": CLAUDE_CLI_RUNTIME_VERSION,
  };
- 
+
 -export function claudeCodeSessionId(token: string | undefined): string {
 +export function claudeCodeSessionId(token: string | undefined, sessionKey?: string | null): string {
    const seed = token && token.length > 0 ? token : "opencodex-anon";
@@ -113,7 +113,7 @@
  const MAX_USER_ID_BYTES = 4096;
  type Rec = Record<string, unknown>;
  const isRec = (value: unknown): value is Rec => value !== null && typeof value === "object" && !Array.isArray(value);
- 
+
 +/** Deterministic per-account 64-hex device_id so pooled accounts never share one client device_id. */
 +export function deriveAnthropicAccountDeviceId(accountUuid: string): string {
 +  return createHash("sha256").update(`ocx-claude-code-device-v1:${accountUuid.trim().toLowerCase()}`, "utf8").digest("hex");
