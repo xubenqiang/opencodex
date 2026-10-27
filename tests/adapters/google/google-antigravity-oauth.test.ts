@@ -105,6 +105,27 @@ describe("antigravity project discovery", () => {
     expect(await discoverAntigravityProject("tok")).toBe("proj-T");
     expect(onboardCalls).toBe(2);
   });
+
+  test("onboardUser forwards default tier_id from loadCodeAssist allowedTiers when present", async () => {
+    let onboardTierId: string | undefined;
+    routeFetch((url, init) => {
+      if (url.includes(":loadCodeAssist")) {
+        return new Response(JSON.stringify({
+          allowedTiers: [
+            { id: "free-tier", isDefault: false },
+            { id: "standard-tier", isDefault: true },
+          ],
+        }), { status: 200 });
+      }
+      if (url.includes(":onboardUser")) {
+        onboardTierId = JSON.parse(String(init?.body)).tier_id;
+        return new Response(JSON.stringify({ done: true, response: { cloudaicompanionProject: "proj-std" } }), { status: 200 });
+      }
+      return new Response("no", { status: 404 });
+    });
+    expect(await discoverAntigravityProject("tok")).toBe("proj-std");
+    expect(onboardTierId).toBe("standard-tier");
+  });
 });
 
 describe("antigravity refresh", () => {
@@ -143,6 +164,33 @@ describe("antigravity refresh", () => {
     expect(caught).toBeDefined();
     expect(caught!.message).toContain("400");
     expect(caught!.message).not.toContain("secret-detail");
+  });
+
+  test("structured invalid_grant JSON response appends (invalid_grant) without leaking error_description, and id_token sub populates accountId", async () => {
+    routeFetch((url) => {
+      if (url.includes("oauth2.googleapis.com/token")) {
+        return Response.json({ error: "invalid_grant", error_description: "Token has been expired or revoked secret-detail" }, { status: 400 });
+      }
+      return new Response("no", { status: 404 });
+    });
+    let caught: Error | undefined;
+    try { await refreshAntigravityToken("refresh-tok"); } catch (e) { caught = e as Error; }
+    expect(caught?.message).toBe("Antigravity token request failed: 400 (invalid_grant)");
+    expect(caught?.message).not.toContain("secret-detail");
+
+    const header = Buffer.from(JSON.stringify({ alg: "none" })).toString("base64url");
+    const payload = Buffer.from(JSON.stringify({ sub: "google-sub-12345", email: "User@Example.com" })).toString("base64url");
+    const idToken = `${header}.${payload}.sig`;
+    routeFetch((url) => {
+      if (url.includes("oauth2.googleapis.com/token")) {
+        return Response.json({ access_token: "fresh-access", expires_in: 3600, id_token: idToken }, { status: 200 });
+      }
+      if (url.includes(":loadCodeAssist")) return Response.json({ cloudaicompanionProject: "proj-sub" });
+      return new Response("no", { status: 404 });
+    });
+    const cred = await refreshAntigravityToken("refresh-tok");
+    expect(cred.accountId).toBe("google-sub-12345");
+    expect(cred.email).toBe("user@example.com");
   });
 });
 

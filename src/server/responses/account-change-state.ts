@@ -270,10 +270,6 @@ export function applyAccountChangeConversationStateScrub(
     args.headers.delete("x-codex-turn-state");
     headerScrubbed = true;
   }
-  const portable = canPortConversationState(collectConversationStateCarriers(body)).portable;
-  if (portable && !headerScrubbed) {
-    return scrubUnportableConversationStateInPlace(body);
-  }
   const scrubbed = scrubUnportableConversationStateInPlace(body);
   if (!scrubbed && !headerScrubbed) return false;
   if (parsed) {
